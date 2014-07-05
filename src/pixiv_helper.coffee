@@ -131,10 +131,12 @@ class Downloader extends EventEmitter
     @req.send null
     return true
 
-main = (global, $, util)->
+main = (global, $, util, saveAs)->
   downloader = new Downloader
-  
+  getTitle = ()->
+    return global.pixiv.context.illustTitle
   downloadPicture = (size)->
+    title = getTitle()
     switch size
       when 'small'
         url = global.pixiv.context.ugokuIllustData.src
@@ -144,6 +146,7 @@ main = (global, $, util)->
         throw new Error 'unknown size'
     downloader.on 'success', (blob)->
       console.log blob
+      saveAs blob, title
     console.log downloader.download url
         
   GM_registerMenuCommand '下載檔案!(縮圖)', ->
@@ -151,4 +154,4 @@ main = (global, $, util)->
   GM_registerMenuCommand '下載檔案!(全圖)', ->
     downloadPicture 'full'
 
-main unsafeWindow, lib.$, Util
+main unsafeWindow, lib.$, Util, lib.saveAs

@@ -242,11 +242,15 @@
       };
       return Downloader;
     }(EventEmitter);
-    main = function (global, $, util) {
-      var downloader, downloadPicture;
+    main = function (global, $, util, saveAs) {
+      var downloader, downloadPicture, getTitle;
       downloader = new Downloader;
+      getTitle = function () {
+        return global.pixiv.context.illustTitle;
+      };
       downloadPicture = function (size) {
-        var url;
+        var title, url;
+        title = getTitle();
         switch (size) {
         case 'small':
           url = global.pixiv.context.ugokuIllustData.src;
@@ -258,7 +262,8 @@
           throw new Error('unknown size');
         }
         downloader.on('success', function (blob) {
-          return console.log(blob);
+          console.log(blob);
+          return saveAs(blob, title);
         });
         return console.log(downloader.download(url));
       };
@@ -269,7 +274,7 @@
         return downloadPicture('full');
       });
     };
-    main(unsafeWindow, lib.$, Util);
+    main(unsafeWindow, lib.$, Util, lib.saveAs);
     function isOwn$(o, p) {
       return {}.hasOwnProperty.call(o, p);
     }
