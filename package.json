@@ -1,0 +1,17 @@
+{
+  "name": "pixiv-helper",
+  "version": "1.0.0-alpha",
+  "description": "pixiv helper",
+  "author": "mmis1000",
+  "main": "index.js",
+  "repository": "https://github.com/jnordberg/gif.js.git",
+  "devDependencies": {
+    "commonjs-everywhere": "~0.9.4"
+  },
+  "scripts": {
+    "prepublish": "bin\\build.bat"
+  },
+  "browser": "./dist/pixiv_helper.js",
+  "license": "MIT",
+  "readmeFilename": "README.md"
+}
