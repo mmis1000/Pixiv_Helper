@@ -219,7 +219,7 @@
         }
         this.locked = true;
         this.req = new XMLHttpRequest;
-        this.req.open('GET', src, true);
+        this.req.open('GET', url, true);
         this.req.responseType = 'blob';
         this.req.onload = function (this$) {
           return function (e) {
@@ -237,6 +237,7 @@
             return true;
           };
         }(this);
+        this.req.send(null);
         return true;
       };
       return Downloader;
@@ -256,10 +257,10 @@
         default:
           throw new Error('unknown size');
         }
-        downloader.download(url);
-        return downloader.on('success', function (blob) {
+        downloader.on('success', function (blob) {
           return console.log(blob);
         });
+        return console.log(downloader.download(url));
       };
       GM_registerMenuCommand('\u4E0B\u8F09\u6A94\u6848!(\u7E2E\u5716)', function () {
         return downloadPicture('small');

@@ -115,7 +115,7 @@ class Downloader extends EventEmitter
     @locked = true
     
     @req = new XMLHttpRequest()
-    @req.open "GET", src, true
+    @req.open "GET", url, true
     @req.responseType = "blob"
     @req.onload = (e)=>
       blob = @req.response
@@ -128,6 +128,7 @@ class Downloader extends EventEmitter
         @emit 'fail', url
       @locked = false
       return true
+    @req.send null
     return true
 
 main = (global, $, util)->
@@ -141,9 +142,9 @@ main = (global, $, util)->
         url = global.pixiv.context.ugokuIllustFullscreenData.src
       else
         throw new Error 'unknown size'
-    downloader.download(url)
     downloader.on 'success', (blob)->
       console.log blob
+    console.log downloader.download url
         
   GM_registerMenuCommand '下載檔案!(縮圖)', ->
     downloadPicture 'small'
