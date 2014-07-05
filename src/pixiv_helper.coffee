@@ -150,4 +150,4 @@ main = (global, $, util)->
   GM_registerMenuCommand '下載檔案!(全圖)', ->
     downloadPicture 'full'
 
-main unsafeWindow lib.$ Util
+main unsafeWindow, lib.$, Util

@@ -268,7 +268,7 @@
         return downloadPicture('full');
       });
     };
-    main(unsafeWindow(lib.$(Util)));
+    main(unsafeWindow, lib.$, Util);
     function isOwn$(o, p) {
       return {}.hasOwnProperty.call(o, p);
     }
