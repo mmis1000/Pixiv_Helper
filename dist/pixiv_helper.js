@@ -51,7 +51,7 @@
       };
     }();
   require.define('/pixiv_helper.coffee', function (module, exports, __dirname, __filename) {
-    var Deferer, Downloader, EventEmitter, Gifcreater, GifFrames, imageCreater, lib, main, Modal, Util;
+    var Deferer, Downloader, EventEmitter, Extracter, Gifcreater, GifFrames, ImageCreater, lib, main, Modal, Util;
     EventEmitter = require('events', module).EventEmitter;
     Modal = require('/modal.js', module);
     Util = require('/util.js', module);
@@ -65,26 +65,26 @@
     Deferer = function (super$) {
       extends$(Deferer, super$);
       function Deferer() {
-        this.count = 0;
+        this.all = 0;
         this.counted = 0;
       }
       Deferer.prototype.add = function () {
-        return this.count++;
+        return this.all++;
       };
       Deferer.prototype.count = function () {
         this.counted++;
         this.emit('progress', {
-          all: this.count,
-          fired: this(counted)
+          all: this.all,
+          fired: this.counted
         });
-        if (this.counted === this.count)
+        if (this.counted === this.all)
           return this.emit('done');
       };
       return Deferer;
     }(EventEmitter);
-    imageCreater = function (super$1) {
-      extends$(imageCreater, super$1);
-      function imageCreater(param$, param$1) {
+    ImageCreater = function (super$1) {
+      extends$(ImageCreater, super$1);
+      function ImageCreater(param$, param$1) {
         if (null == param$)
           param$ = Deferer;
         this.Deferer = param$;
@@ -93,11 +93,14 @@
         this.$ = param$1;
         this.locked = false;
       }
-      imageCreater.prototype.create = function (blobs) {
+      ImageCreater.prototype.create = function (blobs) {
         var file, imgElement, imgURL;
-        if (this.locked === true)
+        if (this.locked === true) {
+          console.log('incorrect invoke');
           return false;
+        }
         this.locked = true;
+        console.log('image create start');
         this.deferer = new this.Deferer;
         for (var i$ = 0, length$ = blobs.length; i$ < length$; ++i$) {
           file = blobs[i$];
@@ -119,12 +122,13 @@
             this$.deferer.removeAllListeners('done');
             this$.deferer = null;
             this$.removeAllListeners('done');
+            this$.locked = false;
             return true;
           };
         }(this));
         return true;
       };
-      return imageCreater;
+      return ImageCreater;
     }(EventEmitter);
     GifFrames = function () {
       function GifFrames(param$) {
@@ -151,14 +155,23 @@
           param$1 = lib.GIF_worker_URL;
         this.Gif_worker_path = param$1;
         this.locked = false;
+        this.cachedFrames = [];
+        this.cachedGif = [];
       }
-      Gifcreater.prototype.render = function (gifFrames) {
-        var frame;
-        if (this.locked === true)
+      Gifcreater.prototype.render = function (gifFrames, size) {
+        var frame, index;
+        if (this.locked === true) {
+          console.log('incorrect invoke');
           return false;
+        }
+        index = this.cachedFrames.indexOf(gifFrames);
+        if (index >= 0) {
+          this.emit('finished', this.cachedGif[index]);
+          this.removeAllListeners('finished');
+          return true;
+        }
         this.locked = true;
-        this.deferer.removeAllListeners('done');
-        this.deferer = null;
+        console.log('Gif create start');
         this.gif = new this.Gif({
           workers: 2,
           quality: 10,
@@ -194,30 +207,100 @@
               this$.gremoveAllListeners('progress');
             } catch (e$3) {
             }
+            this$.cachedFrames.push(gifFrames);
+            this$.cachedGif.push(blob);
             this$.gif = null;
             return this$.locked = false;
           };
         }(this));
+        this.gif.render();
         return true;
       };
       return Gifcreater;
     }(EventEmitter);
-    Downloader = function (super$3) {
-      extends$(Downloader, super$3);
+    Extracter = function (super$3) {
+      extends$(Extracter, super$3);
+      function Extracter(param$) {
+        if (null == param$)
+          param$ = lib.JSZip;
+        this.JSZip = param$;
+        this.locked = false;
+        this.zippedFiles = [];
+        this.unzippedFiles = [];
+      }
+      Extracter.prototype.extract = function (param$) {
+        var index;
+        this.blob = param$;
+        if (this.locked === true) {
+          console.log('incorrect invoke');
+          return false;
+        }
+        console.log('extract start');
+        index = this.zippedFiles.indexOf(this.blob);
+        if (index >= 0) {
+          console.log('emit ' + this.emit('done', this.unzippedFiles[index]));
+          this.removeAllListeners('done');
+          return true;
+        }
+        this.locked = true;
+        this.fileReader = new FileReader;
+        this.fileReader.onload = function (this$) {
+          return function () {
+            return this$._onArrayBufferLoaded(this$.fileReader.result);
+          };
+        }(this);
+        return this.fileReader.readAsArrayBuffer(this.blob);
+      };
+      Extracter.prototype._onArrayBufferLoaded = function (arrBuffer) {
+        var arrayBuffer_file, blob, file, fileName, files, MIME, temp;
+        this.zip = new this.JSZip(arrBuffer);
+        files = this.zip.file(/\d+.(?:jpg|png|gif)/i);
+        temp = [];
+        for (var i$ = 0, length$ = files.length; i$ < length$; ++i$) {
+          file = files[i$];
+          if (file.dir)
+            break;
+          fileName = file.name;
+          MIME = Util.getMIME(fileName);
+          arrayBuffer_file = file.asArrayBuffer();
+          blob = new Blob([arrayBuffer_file], { type: MIME });
+          temp.push({
+            blob: blob,
+            fileName: fileName,
+            mime: MIME
+          });
+        }
+        this.zippedFiles.push(this.blob);
+        this.unzippedFiles.push(temp);
+        console.log('emit ' + this.emit('done', temp));
+        this.blob = null;
+        this.removeAllListeners('done');
+        this.zip = null;
+        this.fileReader = null;
+        this.locked = false;
+        return true;
+      };
+      return Extracter;
+    }(EventEmitter);
+    Downloader = function (super$4) {
+      extends$(Downloader, super$4);
       function Downloader() {
         this._cachedURL = [];
         this._cache = {};
         this.locked = false;
       }
       Downloader.prototype.download = function (url) {
-        if (this.locked)
+        if (this.locked) {
+          console.log('incorrect invoke');
           return false;
+        }
         if (in$(url, this._cachedURL)) {
           this.emit('success', this._cache[url]);
           this.removeAllListeners('success');
           return true;
         }
         this.locked = true;
+        console.log('download start');
         this.req = new XMLHttpRequest;
         this.req.open('GET', url, true);
         this.req.responseType = 'blob';
@@ -243,8 +326,12 @@
       return Downloader;
     }(EventEmitter);
     main = function (global, $, util, saveAs) {
-      var downloader, downloadPicture, getTitle;
+      var downloader, downloadPicture, extracter, getTitle, gifCreater, imageCreater, showGif, showPic;
+      Modal.hook($);
       downloader = new Downloader;
+      extracter = new Extracter;
+      imageCreater = new ImageCreater;
+      gifCreater = new Gifcreater;
       getTitle = function () {
         return global.pixiv.context.illustTitle;
       };
@@ -267,13 +354,128 @@
         });
         return console.log(downloader.download(url));
       };
-      GM_registerMenuCommand('\u4E0B\u8F09\u6A94\u6848!(\u7E2E\u5716)', function () {
-        return downloadPicture('small');
-      });
-      return GM_registerMenuCommand('\u4E0B\u8F09\u6A94\u6848!(\u5168\u5716)', function () {
-        return downloadPicture('full');
-      });
+      showPic = function (size) {
+        var title, url;
+        title = getTitle();
+        switch (size) {
+        case 'small':
+          url = global.pixiv.context.ugokuIllustData.src;
+          break;
+        case 'full':
+          url = global.pixiv.context.ugokuIllustFullscreenData.src;
+          break;
+        default:
+          throw new Error('unknown size');
+        }
+        downloader.on('success', function (blob) {
+          Modal.clear();
+          Modal.show();
+          extracter.on('done', function (files) {
+            imageCreater.on('done', function (files) {
+              var file;
+              Modal.clear();
+              for (var i$ = 0, length$ = files.length; i$ < length$; ++i$) {
+                file = files[i$];
+                Modal.modalContent.append($('<p></p>').text(file.fileName));
+                Modal.modalContent.append(file.image);
+              }
+              return true;
+            });
+            imageCreater.create(files);
+            return true;
+          });
+          extracter.extract(blob);
+          return true;
+        });
+        console.log(downloader.download(url));
+        return true;
+      };
+      showGif = function (size) {
+        var delays, title, url;
+        title = getTitle();
+        delays = global.pixiv.context.ugokuIllustData.frames.slice(0);
+        switch (size) {
+        case 'small':
+          url = global.pixiv.context.ugokuIllustData.src;
+          size = global.pixiv.context.ugokuIllustData.size.slice(0);
+          break;
+        case 'full':
+          url = global.pixiv.context.ugokuIllustFullscreenData.src;
+          size = global.pixiv.context.illustSize.slice(0);
+          break;
+        default:
+          throw new Error('unknown size');
+        }
+        downloader.on('success', function (blob) {
+          Modal.clear();
+          Modal.show();
+          extracter.on('done', function (files) {
+            console.log('extract done');
+            imageCreater.on('done', function (files) {
+              var delay, file;
+              Modal.clear();
+              for (var i$ = 0, length$ = files.length; i$ < length$; ++i$) {
+                file = files[i$];
+                for (var i$1 = 0, length$1 = delays.length; i$1 < length$1; ++i$1) {
+                  delay = delays[i$1];
+                  if (file.fileName === delay.file) {
+                    file.delay = delay.delay;
+                    break;
+                  }
+                }
+              }
+              console.log(files);
+              console.log(delays);
+              gifCreater.on('finished', function (blob) {
+                var img;
+                Modal.clear();
+                url = Util.getUrl(blob);
+                img = document.createElement('img');
+                img.src = url;
+                Modal.modalContent.append(img);
+                return true;
+              });
+              gifCreater.on('progress', function (p) {
+                Modal.modalContent.text('progressing\n' + Math.floor(p * 100) + '%');
+                return true;
+              });
+              gifCreater.render(files, size);
+              return true;
+            });
+            imageCreater.create(files);
+            return true;
+          });
+          console.log(extracter);
+          extracter.extract(blob);
+          return true;
+        });
+        console.log(downloader.download(url));
+        return true;
+      };
+      if (global.pixiv.context.ugokuIllustData) {
+        GM_registerMenuCommand('\u4E0B\u8F09zip\u6A94\u6848!(\u7E2E\u5716)', function () {
+          return downloadPicture('small');
+        });
+        GM_registerMenuCommand('\u6AA2\u8996\u5F71\u683C!(\u7E2E\u5716)', function () {
+          return showPic('small');
+        });
+        GM_registerMenuCommand('\u6AA2\u8996GIF!(\u7E2E\u5716)', function () {
+          return showGif('small');
+        });
+        if (global.pixiv.context.ugokuIllustFullscreenData) {
+          GM_registerMenuCommand('\u4E0B\u8F09zip\u6A94\u6848!(\u5168\u5716)', function () {
+            return downloadPicture('full');
+          });
+          GM_registerMenuCommand('\u6AA2\u8996\u5F71\u683C!(\u5168\u5716)', function () {
+            return showPic('full');
+          });
+          return GM_registerMenuCommand('\u6AA2\u8996GIF!(\u5168\u5716)', function () {
+            return showGif('full');
+          });
+        }
+      }
     };
+    console.log(lib);
     main(unsafeWindow, lib.$, Util, lib.saveAs);
     function isOwn$(o, p) {
       return {}.hasOwnProperty.call(o, p);
@@ -414,6 +616,10 @@
         'xwd': 'image/x-xwindowdump',
         'zip': 'application/zip'
       };
+    function last(arr) {
+      var l = arr.length;
+      return arr[l - 1];
+    }
     function getMIME(name) {
       return mimeTypes[getFileExtension(name)] || '';
     }
@@ -477,7 +683,7 @@
         "<div id='test' class='mmis1000-modal'>",
         "<div class='modal'>",
         "<div class='head'>",
-        "<span class='text'>\uFFFDj\uFFFD\uFFFD\uFFFD\u02F5\uFFFD</span>",
+        "<span class='text'>\u6AA2\u8996</span>",
         "<div class='exit'>",
         'X',
         '</div>',

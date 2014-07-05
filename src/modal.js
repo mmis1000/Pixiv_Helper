@@ -57,7 +57,7 @@ var modalContent = [
     "<div id='test' class='mmis1000-modal'>",
     "<div class='modal'>",
     "<div class='head'>",
-    "<span class='text'>大圖檢視</span>",
+    "<span class='text'>瑼Ｚ��</span>",
     "<div class='exit'>",
     "X",
     "</div>",

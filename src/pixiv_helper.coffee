@@ -11,29 +11,31 @@ lib =
 
 class Deferer extends EventEmitter
   constructor: ->
-    @count = 0
+    @all = 0
     @counted = 0
   add: ->
-    @count++
+    @all++
   count: ->
     @counted++
     @emit 'progress', 
-      all : @count
-      fired : @ counted
-    if @counted is @count
+      all : @all
+      fired : @counted
+    if @counted is @all
       @emit 'done'
 ###
   blobs =
     blob : blob1,
     blob : blob2
 ###
-class imageCreater extends EventEmitter
+class ImageCreater extends EventEmitter
   constructor : (@Deferer = Deferer, @$ = lib.$) ->
     @locked = false
   create : (blobs) ->
     if @locked is true
+      console.log 'incorrect invoke'
       return false
     @locked = true
+    console.log 'image create start'
     @deferer = new @Deferer
     for file in blobs
       imgURL = Util.getUrl(file.blob)
@@ -50,6 +52,7 @@ class imageCreater extends EventEmitter
       @deferer.removeAllListeners 'done'
       @deferer = null
       @removeAllListeners 'done'
+      @locked = false
       return true
     return true
 class GifFrames
@@ -70,12 +73,21 @@ class GifFrames
 class Gifcreater extends EventEmitter
   constructor: (@Gif = lib.GIF, @Gif_worker_path = lib.GIF_worker_URL) ->
     @locked = false 
-  render: (gifFrames) ->
+    @cachedFrames = []
+    @cachedGif = []
+  render: (gifFrames, size) ->
     if @locked is true
+      console.log 'incorrect invoke'
       return false
+      
+    index = @cachedFrames.indexOf gifFrames
+    if index >= 0
+      @emit 'finished', @cachedGif[index]
+      @removeAllListeners 'finished'
+      return true
+    
     @locked = true
-    @deferer.removeAllListeners 'done'
-    @deferer = null
+    console.log 'Gif create start'
     @gif = new @Gif
       workers : 2
       quality : 10
@@ -94,8 +106,63 @@ class Gifcreater extends EventEmitter
       try @gif.removeAllListeners 'progress'
       try @removeAllListeners 'finished'
       try @gremoveAllListeners 'progress'
+      @cachedFrames.push gifFrames
+      @cachedGif.push blob
       @gif = null
       @locked = false
+    @gif.render()
+    return true
+
+class Extracter extends EventEmitter
+  constructor: (@JSZip = lib.JSZip)->
+    @locked = false
+    @zippedFiles = []
+    @unzippedFiles = []
+  extract: (@blob)->
+    if @locked is true
+      console.log 'incorrect invoke'
+      return false
+    
+    console.log 'extract start'
+    index = @zippedFiles.indexOf @blob
+    if index >= 0
+      console.log "emit #{@emit 'done', @unzippedFiles[index]}"
+      @removeAllListeners 'done'
+      return true
+    
+    @locked = true
+    @fileReader = new FileReader
+    @fileReader.onload = ()=>
+      @_onArrayBufferLoaded @fileReader.result
+    @fileReader.readAsArrayBuffer @blob
+    
+  _onArrayBufferLoaded: (arrBuffer)->
+    @zip = new @JSZip arrBuffer
+    files = @zip.file /\d+.(?:jpg|png|gif)/i
+    temp = []
+    for file in files
+      if file.dir
+        break
+      fileName = file.name
+      MIME = Util.getMIME fileName
+      arrayBuffer_file = file.asArrayBuffer()
+      blob = new Blob [arrayBuffer_file],
+        type : MIME
+      temp.push
+        blob : blob
+        fileName : fileName
+        mime : MIME
+        
+    @zippedFiles.push @blob
+    @unzippedFiles.push temp
+    
+    console.log "emit #{@emit 'done', temp}"
+    
+    @blob = null
+    @removeAllListeners 'done'
+    @zip = null
+    @fileReader = null
+    @locked = false
     return true
 
 class Downloader extends EventEmitter
@@ -105,6 +172,7 @@ class Downloader extends EventEmitter
     @locked = false
   download: (url)->
     if @locked
+      console.log 'incorrect invoke'
       return false
     
     if url in @_cachedURL
@@ -114,6 +182,7 @@ class Downloader extends EventEmitter
     
     @locked = true
     
+    console.log 'download start'
     @req = new XMLHttpRequest()
     @req.open "GET", url, true
     @req.responseType = "blob"
@@ -132,7 +201,11 @@ class Downloader extends EventEmitter
     return true
 
 main = (global, $, util, saveAs)->
+  Modal.hook $
   downloader = new Downloader
+  extracter = new Extracter
+  imageCreater = new ImageCreater
+  gifCreater = new Gifcreater
   getTitle = ()->
     return global.pixiv.context.illustTitle
   downloadPicture = (size)->
@@ -148,10 +221,93 @@ main = (global, $, util, saveAs)->
       console.log blob
       saveAs blob, title
     console.log downloader.download url
-        
-  GM_registerMenuCommand '下載檔案!(縮圖)', ->
-    downloadPicture 'small'
-  GM_registerMenuCommand '下載檔案!(全圖)', ->
-    downloadPicture 'full'
-
+  
+  showPic = (size)->
+    title = getTitle()
+    switch size
+      when 'small'
+        url = global.pixiv.context.ugokuIllustData.src
+      when 'full'
+        url = global.pixiv.context.ugokuIllustFullscreenData.src
+      else
+        throw new Error 'unknown size'
+    downloader.on 'success', (blob)->
+      Modal.clear()
+      Modal.show()
+      extracter.on 'done', (files)->
+        imageCreater.on 'done', (files)->
+          Modal.clear()
+          for file in files
+            Modal.modalContent.append ($ '<p></p>').text file.fileName
+            Modal.modalContent.append file.image
+          return true
+        imageCreater.create files
+        return true
+      extracter.extract blob
+      return true
+    console.log downloader.download url
+    return true
+    
+  showGif = (size)->
+    title = getTitle()
+    delays = global.pixiv.context.ugokuIllustData.frames.slice 0
+    switch size
+      when 'small'
+        url = global.pixiv.context.ugokuIllustData.src
+        size = global.pixiv.context.ugokuIllustData.size.slice 0
+      when 'full'
+        url = global.pixiv.context.ugokuIllustFullscreenData.src
+        size = global.pixiv.context.illustSize.slice 0
+      else
+        throw new Error 'unknown size'
+    downloader.on 'success', (blob)->
+      Modal.clear()
+      Modal.show()
+      extracter.on 'done', (files)->
+        console.log 'extract done'
+        imageCreater.on 'done', (files)->
+          Modal.clear()
+          for file in files
+            for delay in delays
+              if file.fileName is delay.file
+                file.delay = delay.delay
+                break
+          console.log files
+          console.log delays
+          gifCreater.on 'finished' , (blob)->
+            Modal.clear()
+            url = Util.getUrl blob
+            img = document.createElement "img"
+            img.src = url
+            Modal.modalContent.append img
+            return true
+          gifCreater.on 'progress' , (p)->
+            Modal.modalContent.text "progressing\n#{Math.floor (p * 100)}%"
+            return true
+          gifCreater.render files, size
+          return true
+        imageCreater.create files
+        return true
+      console.log extracter
+      extracter.extract blob
+      return true
+    console.log downloader.download url
+    return true
+    
+  if global.pixiv.context.ugokuIllustData
+    GM_registerMenuCommand '下載zip檔案!(縮圖)', ->
+      downloadPicture 'small'
+    GM_registerMenuCommand '檢視影格!(縮圖)', ->
+      showPic 'small'
+    GM_registerMenuCommand '檢視GIF!(縮圖)', ->
+      showGif 'small'
+    if global.pixiv.context.ugokuIllustFullscreenData
+      GM_registerMenuCommand '下載zip檔案!(全圖)', ->
+        downloadPicture 'full'
+      GM_registerMenuCommand '檢視影格!(全圖)', ->
+        showPic 'full'
+      GM_registerMenuCommand '檢視GIF!(全圖)', ->
+        showGif 'full'
+    
+console.log lib
 main unsafeWindow, lib.$, Util, lib.saveAs

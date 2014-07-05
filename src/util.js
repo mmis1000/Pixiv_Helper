@@ -117,6 +117,11 @@ var mimeTypes =
         'zip' : 'application/zip'
     }
 
+function last(arr) {
+    var l = arr.length;
+    return arr[l - 1];
+}
+
 function getMIME(name) {
     return mimeTypes[getFileExtension(name)] || '';
 }

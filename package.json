@@ -1,6 +1,6 @@
 {
   "name": "pixiv-helper",
-  "version": "1.0.0-alpha",
+  "version": "1.0.0-alpha-1",
   "description": "pixiv helper",
   "author": "mmis1000",
   "main": "index.js",
