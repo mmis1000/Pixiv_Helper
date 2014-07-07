@@ -870,4 +870,4 @@
   global.pixiv_helper = require('/pixiv_helper.coffee');
 }.call(this, this));
 //# sourceMappingURL=pixiv_helper.js.map 
-// pixiv_helper.js   
+// pixiv_helper.js   https://github.com/mmis1000/Pixiv_Helper 

@@ -4,7 +4,7 @@ node bin/version.js >> temp.txt
 set version= < temp.txt
 del temp.txt
 
-set url=https://github.com/jnordberg/gif.js
+set url=https://github.com/mmis1000/Pixiv_Helper
 
 if exist node_modules/commonjs-everywhere/lib/command.js (
     echo Packaging pixiv_helper.js %version%
@@ -16,7 +16,7 @@ if exist node_modules/commonjs-everywhere/lib/command.js (
         --inline-sources ^
         pixiv_helper.coffee
     echo. >> dist\pixiv_helper.js
-    echo // pixiv_helper.js %version% >> dist\pixiv_helper.js
+    echo // pixiv_helper.js %version% %url% >> dist\pixiv_helper.js
     
     node bin\postCompile.js 
     
