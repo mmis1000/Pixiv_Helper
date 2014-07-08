@@ -6,7 +6,7 @@
 // @require     https://greasyfork.org/scripts/2350-filesaver-js/code/filesaverjs.js?version=6255
 // @require     http://cdn.staticfile.org/jszip/2.3.0/jszip.min.js
 // @require     https://greasyfork.org/scripts/2963-gif-js/code/gifjs.js?version=8462
-// @version     1.0.0-alpha-1
+// @version     1.0.0-alpha-2
 // @grant       GM_registerMenuCommand
 // @grant       GM_openInTab
 // @description A small script to download the new png animated image in pixiv
