@@ -50,6 +50,7 @@ menuCss = '''
     top: 50%;
     font-size: 18px;
     margin: -145px 0px 0px -105px;
+    line-height: 25px;
   }
   .mmis_selection_box fieldset,
   .mmis_selection_box input,
