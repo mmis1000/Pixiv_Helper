@@ -1,5 +1,6 @@
 {EventEmitter} = require 'events'
 Modal = require 'modal.js'
+Menu = require 'menu.coffee'
 Util = require 'util.js'
 
 lib = 
@@ -202,6 +203,7 @@ class Downloader extends EventEmitter
 
 main = (global, $, util, saveAs)->
   Modal.hook $
+  Menu.hook $
   downloader = new Downloader
   extracter = new Extracter
   imageCreater = new ImageCreater
@@ -219,7 +221,7 @@ main = (global, $, util, saveAs)->
         throw new Error 'unknown size'
     downloader.on 'success', (blob)->
       console.log blob
-      saveAs blob, title
+      saveAs blob, "#{title}.zip"
     console.log downloader.download url
   
   showPic = (size)->
@@ -248,24 +250,29 @@ main = (global, $, util, saveAs)->
     console.log downloader.download url
     return true
     
-  showGif = (size)->
+  showGif = (size, useDownload)->
     title = getTitle()
     delays = global.pixiv.context.ugokuIllustData.frames.slice 0
     switch size
       when 'small'
         url = global.pixiv.context.ugokuIllustData.src
-        size = global.pixiv.context.ugokuIllustData.size.slice 0
+        imageSize = global.pixiv.context.ugokuIllustData.size.slice 0
       when 'full'
         url = global.pixiv.context.ugokuIllustFullscreenData.src
-        size = global.pixiv.context.illustSize.slice 0
+        imageSize = global.pixiv.context.illustSize.slice 0
       else
         throw new Error 'unknown size'
     downloader.on 'success', (blob)->
-      Modal.clear()
-      Modal.show()
+      if not useDownload
+        Modal.clear()
+        Modal.show()
       extracter.on 'done', (files)->
         console.log 'extract done'
         imageCreater.on 'done', (files)->
+          imageSize = [
+            files[0].image.clientWidth || files[0].image.width,
+            files[0].image.clientHeight || files[0].image.height
+          ];
           Modal.clear()
           for file in files
             for delay in delays
@@ -274,17 +281,22 @@ main = (global, $, util, saveAs)->
                 break
           console.log files
           console.log delays
-          gifCreater.on 'finished' , (blob)->
-            Modal.clear()
-            url = Util.getUrl blob
-            img = document.createElement "img"
-            img.src = url
-            Modal.modalContent.append img
-            return true
-          gifCreater.on 'progress' , (p)->
-            Modal.modalContent.text "progressing\n#{Math.floor (p * 100)}%"
-            return true
-          gifCreater.render files, size
+          if not useDownload
+            gifCreater.on 'finished' , (blob)->
+              Modal.clear()
+              url = Util.getUrl blob
+              img = document.createElement "img"
+              img.src = url
+              Modal.modalContent.append img
+              return true
+            gifCreater.on 'progress' , (p)->
+              Modal.modalContent.html "progressing<br>#{Math.floor (p * 100)}%"
+              return true
+          else
+            gifCreater.on 'finished' , (blob)->
+              saveAs blob, "#{title}.gif"
+              return true
+          gifCreater.render files, imageSize
           return true
         imageCreater.create files
         return true
@@ -295,6 +307,10 @@ main = (global, $, util, saveAs)->
     return true
     
   if global.pixiv.context.ugokuIllustData
+    GM_registerMenuCommand '下載動圖', ->
+      Menu.show()
+  
+  ###
     GM_registerMenuCommand '下載zip檔案!(縮圖)', ->
       downloadPicture 'small'
     GM_registerMenuCommand '檢視影格!(縮圖)', ->
@@ -308,6 +324,43 @@ main = (global, $, util, saveAs)->
         showPic 'full'
       GM_registerMenuCommand '檢視GIF!(全圖)', ->
         showGif 'full'
-    
+  ###
+  
+  Menu.on 'run', (data)->
+    #alert JSON.stringify data
+    switch data.size
+      when 'mini'
+        switch data.type
+          when 'gif'
+            switch data.action
+              when 'download'
+                showGif 'small', true
+              when 'view'
+                showGif 'small'
+          when 'frame'
+            switch data.action
+              when 'download'
+                downloadPicture 'small'
+              when 'view'
+                showPic 'small'
+      when 'full'
+        if not global.pixiv.context.ugokuIllustFullscreenData
+          alert '未登入是無法下載全圖的歐'
+          return true
+        switch data.type
+          when 'gif'
+            switch data.action
+              when 'download'
+                showGif 'full', true
+              when 'view'
+                showGif 'full'
+          when 'frame'
+            switch data.action
+              when 'download'
+                downloadPicture 'full'
+              when 'view'
+                showPic 'full'
+  #console.log Menu.show()
+  #console.log Menu
 console.log lib
 main unsafeWindow, lib.$, Util, lib.saveAs

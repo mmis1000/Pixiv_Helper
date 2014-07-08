@@ -65,9 +65,10 @@
       };
     }();
   require.define('/pixiv_helper.coffee', function (module, exports, __dirname, __filename) {
-    var Deferer, Downloader, EventEmitter, Extracter, Gifcreater, GifFrames, ImageCreater, lib, main, Modal, Util;
+    var Deferer, Downloader, EventEmitter, Extracter, Gifcreater, GifFrames, ImageCreater, lib, main, Menu, Modal, Util;
     EventEmitter = require('events', module).EventEmitter;
     Modal = require('/modal.js', module);
+    Menu = require('/menu.coffee', module);
     Util = require('/util.js', module);
     lib = {
       $: jQuery,
@@ -342,6 +343,7 @@
     main = function (global, $, util, saveAs) {
       var downloader, downloadPicture, extracter, getTitle, gifCreater, imageCreater, showGif, showPic;
       Modal.hook($);
+      Menu.hook($);
       downloader = new Downloader;
       extracter = new Extracter;
       imageCreater = new ImageCreater;
@@ -364,7 +366,7 @@
         }
         downloader.on('success', function (blob) {
           console.log(blob);
-          return saveAs(blob, title);
+          return saveAs(blob, '' + title + '.zip');
         });
         return console.log(downloader.download(url));
       };
@@ -404,29 +406,35 @@
         console.log(downloader.download(url));
         return true;
       };
-      showGif = function (size) {
-        var delays, title, url;
+      showGif = function (size, useDownload) {
+        var delays, imageSize, title, url;
         title = getTitle();
         delays = global.pixiv.context.ugokuIllustData.frames.slice(0);
         switch (size) {
         case 'small':
           url = global.pixiv.context.ugokuIllustData.src;
-          size = global.pixiv.context.ugokuIllustData.size.slice(0);
+          imageSize = global.pixiv.context.ugokuIllustData.size.slice(0);
           break;
         case 'full':
           url = global.pixiv.context.ugokuIllustFullscreenData.src;
-          size = global.pixiv.context.illustSize.slice(0);
+          imageSize = global.pixiv.context.illustSize.slice(0);
           break;
         default:
           throw new Error('unknown size');
         }
         downloader.on('success', function (blob) {
-          Modal.clear();
-          Modal.show();
+          if (!useDownload) {
+            Modal.clear();
+            Modal.show();
+          }
           extracter.on('done', function (files) {
             console.log('extract done');
             imageCreater.on('done', function (files) {
               var delay, file;
+              imageSize = [
+                files[0].image.clientWidth || files[0].image.width,
+                files[0].image.clientHeight || files[0].image.height
+              ];
               Modal.clear();
               for (var i$ = 0, length$ = files.length; i$ < length$; ++i$) {
                 file = files[i$];
@@ -440,20 +448,27 @@
               }
               console.log(files);
               console.log(delays);
-              gifCreater.on('finished', function (blob) {
-                var img;
-                Modal.clear();
-                url = Util.getUrl(blob);
-                img = document.createElement('img');
-                img.src = url;
-                Modal.modalContent.append(img);
-                return true;
-              });
-              gifCreater.on('progress', function (p) {
-                Modal.modalContent.text('progressing\n' + Math.floor(p * 100) + '%');
-                return true;
-              });
-              gifCreater.render(files, size);
+              if (!useDownload) {
+                gifCreater.on('finished', function (blob) {
+                  var img;
+                  Modal.clear();
+                  url = Util.getUrl(blob);
+                  img = document.createElement('img');
+                  img.src = url;
+                  Modal.modalContent.append(img);
+                  return true;
+                });
+                gifCreater.on('progress', function (p) {
+                  Modal.modalContent.html('progressing<br>' + Math.floor(p * 100) + '%');
+                  return true;
+                });
+              } else {
+                gifCreater.on('finished', function (blob) {
+                  saveAs(blob, '' + title + '.gif');
+                  return true;
+                });
+              }
+              gifCreater.render(files, imageSize);
               return true;
             });
             imageCreater.create(files);
@@ -466,28 +481,52 @@
         console.log(downloader.download(url));
         return true;
       };
-      if (global.pixiv.context.ugokuIllustData) {
-        GM_registerMenuCommand('\u4E0B\u8F09zip\u6A94\u6848!(\u7E2E\u5716)', function () {
-          return downloadPicture('small');
+      if (global.pixiv.context.ugokuIllustData)
+        GM_registerMenuCommand('\u4E0B\u8F09\u52D5\u5716', function () {
+          return Menu.show();
         });
-        GM_registerMenuCommand('\u6AA2\u8996\u5F71\u683C!(\u7E2E\u5716)', function () {
-          return showPic('small');
-        });
-        GM_registerMenuCommand('\u6AA2\u8996GIF!(\u7E2E\u5716)', function () {
-          return showGif('small');
-        });
-        if (global.pixiv.context.ugokuIllustFullscreenData) {
-          GM_registerMenuCommand('\u4E0B\u8F09zip\u6A94\u6848!(\u5168\u5716)', function () {
-            return downloadPicture('full');
-          });
-          GM_registerMenuCommand('\u6AA2\u8996\u5F71\u683C!(\u5168\u5716)', function () {
-            return showPic('full');
-          });
-          return GM_registerMenuCommand('\u6AA2\u8996GIF!(\u5168\u5716)', function () {
-            return showGif('full');
-          });
+      return Menu.on('run', function (data) {
+        switch (data.size) {
+        case 'mini':
+          switch (data.type) {
+          case 'gif':
+            switch (data.action) {
+            case 'download':
+              return showGif('small', true);
+            case 'view':
+              return showGif('small');
+            }
+          case 'frame':
+            switch (data.action) {
+            case 'download':
+              return downloadPicture('small');
+            case 'view':
+              return showPic('small');
+            }
+          }
+        case 'full':
+          if (!global.pixiv.context.ugokuIllustFullscreenData) {
+            alert('\u672A\u767B\u5165\u662F\u7121\u6CD5\u4E0B\u8F09\u5168\u5716\u7684\u6B50');
+            return true;
+          }
+          switch (data.type) {
+          case 'gif':
+            switch (data.action) {
+            case 'download':
+              return showGif('full', true);
+            case 'view':
+              return showGif('full');
+            }
+          case 'frame':
+            switch (data.action) {
+            case 'download':
+              return downloadPicture('full');
+            case 'view':
+              return showPic('full');
+            }
+          }
         }
-      }
+      });
     };
     console.log(lib);
     main(unsafeWindow, lib.$, Util, lib.saveAs);
@@ -649,90 +688,82 @@
       getUrl: getUrl
     };
   });
-  require.define('/modal.js', function (module, exports, __dirname, __filename) {
-    var loadPlugin = function ($) {
-      var defaultOption = { stat: 'on' };
-      function off(el) {
-        el = $(el);
-        el.find('.modal').slideUp(500, function () {
-          el.fadeOut(200);
-        });
+  require.define('/menu.coffee', function (module, exports, __dirname, __filename) {
+    var EventEmitter, menu, menuCss, menuHTML;
+    EventEmitter = require('events', module).EventEmitter;
+    menuHTML = '\r\n<div class="mmis_selection_box">\r\n    <form>\r\n        <fieldset>\r\n            <legend>\u5C3A\u5BF8</legend>\r\n            <input id="size_mini" type="radio" name ="size" value ="mini" checked>\r\n            <label for="size_mini">\u7E2E\u5716</label>\r\n            <input id="size_full" type="radio" name ="size" value ="full">\r\n            <label for="size_full">\u5168\u5716</label>\r\n        </fieldset>\r\n        <fieldset>\r\n            <legend>\u683C\u5F0F</legend>\r\n            <input id="type_frame" type="radio" name ="type" value ="frame" checked>\r\n            <label for="type_frame">\u55AE\u683C</label>\r\n            <input id="type_gif" type="radio" name ="type" value ="gif">\r\n            <label for="type_gif">gif</label>\r\n        </fieldset>\r\n        <fieldset>\r\n            <legend>\u52D5\u4F5C</legend>\r\n            <input id="action_download" type="radio" name ="action" value ="download" checked>\r\n            <label for="action_download">\u4E0B\u8F09</label>\r\n            <input id="action_view" type="radio" name ="action" value ="view">\r\n            <label for="action_view">\u700F\u89BD</label>\r\n        </fieldset>\r\n    </form>\r\n    <div class="botton_wrap">\r\n        <button data-action="run">\r\n            \u57F7\u884C\r\n        </button>\r\n        <button data-action="cancel">\r\n            \u53D6\u6D88\r\n        </button>\r\n    </div>\r\n</div>';
+    menuCss = '\r\n.mmis_selection_box {\r\n  display :none;\r\n  z-index: 99999;\r\n  width: 200px;\r\n  height: 280px;\r\n  border: 5px solid #eeeeee;\r\n  border-radius: 10px;\r\n  background: white;\r\n  position: fixed;\r\n  text-align: center;\r\n  left: 50%;\r\n  top: 50%;\r\n  font-size: 18px;\r\n  margin: -145px 0px 0px -105px;\r\n}\r\n.mmis_selection_box fieldset,\r\n.mmis_selection_box input,\r\n.mmis_selection_box buttom,\r\n.mmis_selection_box div {\r\n  margin: 0px;\r\n  border: 0px;\r\n  padding: 0px;\r\n}\r\n.mmis_selection_box fieldset {\r\n  margin: 0.5em;\r\n  padding: 0.5em;\r\n  border: 1px solid #dddddd;\r\n  border-radius: 10px;\r\n}\r\n.mmis_selection_box fieldset label {\r\n  display: inline-block;\r\n  width: 3em;\r\n  cursor: pointer;\r\n}\r\n.mmis_selection_box .botton_wrap {\r\n  margin: 0.5em;\r\n}\r\n.mmis_selection_box .botton_wrap button {\r\n  display: block;\r\n  width: 50%;\r\n  text-align: center;\r\n  float: left;\r\n}';
+    menu = function (super$) {
+      extends$(menu, super$);
+      function menu() {
+        this.$ = null;
+        this.inited = false;
       }
-      function on(el) {
-        el = $(el);
-        el.find('.modal').hide();
-        el.fadeIn(200, function () {
-          el.find('.modal').slideDown(500);
-        });
+      menu.prototype.hook = function (jQuery) {
+        if (this.inited)
+          return false;
+        this.$ = jQuery;
+        this.inited = true;
+        this.$('head').append($('<style>').text(menuCss));
+        this.menu = $(menuHTML);
+        this.$('body').append(this.menu);
+        this.menu.on('click', 'button[data-action="cancel"]', function (this$) {
+          return function (e) {
+            this$.hide();
+            return true;
+          };
+        }(this));
+        this.menu.on('click', 'button[data-action="run"]', function (this$) {
+          return function (e) {
+            var data;
+            this$.hide();
+            data = {
+              size: this$.menu.find('input[name="size"]:checked').val(),
+              type: this$.menu.find('input[name="type"]:checked').val(),
+              action: this$.menu.find('input[name="action"]:checked').val()
+            };
+            this$.emit('run', data);
+            return true;
+          };
+        }(this));
+        return true;
+      };
+      menu.prototype.show = function () {
+        if (!this.inited)
+          return false;
+        this.menu.fadeIn();
+        return true;
+      };
+      menu.prototype.hide = function () {
+        if (!this.inited)
+          return false;
+        this.menu.fadeOut();
+        return true;
+      };
+      return menu;
+    }(EventEmitter);
+    module.exports = new menu;
+    function isOwn$(o, p) {
+      return {}.hasOwnProperty.call(o, p);
+    }
+    function extends$(child, parent) {
+      for (var key in parent)
+        if (isOwn$(parent, key))
+          child[key] = parent[key];
+      function ctor() {
+        this.constructor = child;
       }
-      $.fn.modal = function modal(option) {
-        option = option || {};
-        $.extend(option, defaultOption);
-        var _modal = $(this);
-        if (!_modal.is('.inited')) {
-          _modal.on('click', function (e) {
-            if ($(e.target).is('.mmis1000-modal .exit')) {
-              off(_modal);
-            }
-            if ($(e.target).is('.mmis1000-modal')) {
-              off(_modal);
-            }
-          });
-          _modal.addClass('inited');
-        }
-        switch (option.stat) {
-        case 'on':
-          on(_modal);
-          break;
-        case 'off':
-          off(_modal);
-          break;
-        default:
-          on(_modal);
-        }
-      };
-    };
-    var modal_css = '.mmis1000-modal{background:rgba(128,128,128,0.5);bottom:0;display:none;left:0;overflow:hidden;position:fixed;right:0;top:0;z-index:99999}' + '.mmis1000-modal .modal{background:#fff;border-radius:10px;bottom:25px;left:25px;position:absolute;right:25px;top:25px}' + '.mmis1000-modal .modal .head{border-bottom-color:#ddd;border-bottom-style:solid;border-bottom-width:2px;height:30px;left:0;padding-left:5px;position:absolute;right:0;top:0}' + '.mmis1000-modal .modal .head .text{color:#666;font-size:20px;line-height:30px}' + '.mmis1000-modal .modal .head .exit{background:red;border-radius:4px;color:#fff;cursor:pointer;font-size:20px;height:20px;line-height:20px;position:absolute;right:5px;text-align:center;top:5px;width:20px}' + '.mmis1000-modal .modal .content-wrapper{bottom:10px;left:0;overflow:auto;position:absolute;right:0;top:32px}' + '.mmis1000-modal .modal .content-wrapper .content{font-size:18px;left:10px;position:absolute;right:10px;text-align:center;top:10px}' + '.mmis1000-modal .modal .content-wrapper .content img{max-width:100%}';
-    var modalContent = [
-        "<div id='test' class='mmis1000-modal'>",
-        "<div class='modal'>",
-        "<div class='head'>",
-        "<span class='text'>\u6AA2\u8996</span>",
-        "<div class='exit'>",
-        'X',
-        '</div>',
-        '</div>',
-        "<div class='content-wrapper'>",
-        "<div class='content'>",
-        '</div>',
-        '</div>',
-        '</div>',
-        '</div>'
-      ].join('');
-    var modal = {
-        hook: function ($) {
-          if (this.$) {
-            return;
-          }
-          this.$ = $;
-          loadPlugin($);
-          $('head').append($('<style></style>').html(modal_css));
-          this.modal = $(modalContent);
-          this.modalContent = this.modal.find('.content');
-          $('body').append(this.modal);
-        },
-        show: function () {
-          this.$(this.modal).modal();
-        },
-        hide: function () {
-          this.$(this.modal).modal({ stat: off });
-        },
-        clear: function () {
-          this.modalContent.find('*').remove();
-          this.modalContent.text('');
-        }
-      };
-    module.exports = modal;
+      ctor.prototype = parent.prototype;
+      child.prototype = new ctor;
+      child.__super__ = parent.prototype;
+      return child;
+    }
+    function in$(member, list) {
+      for (var i = 0, length = list.length; i < length; ++i)
+        if (i in list && list[i] === member)
+          return true;
+      return false;
+    }
   });
   require.define('events', function (module, exports, __dirname, __filename) {
     if (!process.EventEmitter)
@@ -866,6 +897,91 @@
       }
       return this._events[type];
     };
+  });
+  require.define('/modal.js', function (module, exports, __dirname, __filename) {
+    var loadPlugin = function ($) {
+      var defaultOption = { stat: 'on' };
+      function off(el) {
+        el = $(el);
+        el.find('.modal').slideUp(500, function () {
+          el.fadeOut(200);
+        });
+      }
+      function on(el) {
+        el = $(el);
+        el.find('.modal').hide();
+        el.fadeIn(200, function () {
+          el.find('.modal').slideDown(500);
+        });
+      }
+      $.fn.modal = function modal(option) {
+        option = option || {};
+        $.extend(option, defaultOption);
+        var _modal = $(this);
+        if (!_modal.is('.inited')) {
+          _modal.on('click', function (e) {
+            if ($(e.target).is('.mmis1000-modal .exit')) {
+              off(_modal);
+            }
+            if ($(e.target).is('.mmis1000-modal')) {
+              off(_modal);
+            }
+          });
+          _modal.addClass('inited');
+        }
+        switch (option.stat) {
+        case 'on':
+          on(_modal);
+          break;
+        case 'off':
+          off(_modal);
+          break;
+        default:
+          on(_modal);
+        }
+      };
+    };
+    var modal_css = '.mmis1000-modal{background:rgba(128,128,128,0.5);bottom:0;display:none;left:0;overflow:hidden;position:fixed;right:0;top:0;z-index:99999}' + '.mmis1000-modal .modal{background:#fff;border-radius:10px;bottom:25px;left:25px;position:absolute;right:25px;top:25px}' + '.mmis1000-modal .modal .head{border-bottom-color:#ddd;border-bottom-style:solid;border-bottom-width:2px;height:30px;left:0;padding-left:5px;position:absolute;right:0;top:0}' + '.mmis1000-modal .modal .head .text{color:#666;font-size:20px;line-height:30px}' + '.mmis1000-modal .modal .head .exit{background:red;border-radius:4px;color:#fff;cursor:pointer;font-size:20px;height:20px;line-height:20px;position:absolute;right:5px;text-align:center;top:5px;width:20px}' + '.mmis1000-modal .modal .content-wrapper{bottom:10px;left:0;overflow:auto;position:absolute;right:0;top:32px}' + '.mmis1000-modal .modal .content-wrapper .content{font-size:18px;left:10px;position:absolute;right:10px;text-align:center;top:10px}' + '.mmis1000-modal .modal .content-wrapper .content img{max-width:100%}';
+    var modalContent = [
+        "<div id='test' class='mmis1000-modal'>",
+        "<div class='modal'>",
+        "<div class='head'>",
+        "<span class='text'>\u6AA2\u8996</span>",
+        "<div class='exit'>",
+        'X',
+        '</div>',
+        '</div>',
+        "<div class='content-wrapper'>",
+        "<div class='content'>",
+        '</div>',
+        '</div>',
+        '</div>',
+        '</div>'
+      ].join('');
+    var modal = {
+        hook: function ($) {
+          if (this.$) {
+            return;
+          }
+          this.$ = $;
+          loadPlugin($);
+          $('head').append($('<style></style>').html(modal_css));
+          this.modal = $(modalContent);
+          this.modalContent = this.modal.find('.content');
+          $('body').append(this.modal);
+        },
+        show: function () {
+          this.$(this.modal).modal();
+        },
+        hide: function () {
+          this.$(this.modal).modal({ stat: off });
+        },
+        clear: function () {
+          this.modalContent.find('*').remove();
+          this.modalContent.text('');
+        }
+      };
+    module.exports = modal;
   });
   global.pixiv_helper = require('/pixiv_helper.coffee');
 }.call(this, this));
