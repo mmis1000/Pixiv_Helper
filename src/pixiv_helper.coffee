@@ -1,6 +1,7 @@
 {EventEmitter} = require 'events'
-Modal = require 'modal.js'
-Menu = require 'menu.coffee'
+Modal = require 'view/modal.js'
+Menu = require 'view/menu.coffee'
+Button = require 'view/downloadButton.coffee'
 Util = require 'util.js'
 
 lib = 
@@ -309,7 +310,10 @@ main = (global, $, util, saveAs)->
   if global.pixiv.context.ugokuIllustData
     GM_registerMenuCommand '下載動圖', ->
       Menu.show()
-  
+      
+    Button.hook $
+    Button.on 'click', ->
+      Menu.show()
   ###
     GM_registerMenuCommand '下載zip檔案!(縮圖)', ->
       downloadPicture 'small'

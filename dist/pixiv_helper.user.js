@@ -6,7 +6,7 @@
 // @require     https://greasyfork.org/scripts/2350-filesaver-js/code/filesaverjs.js?version=6255
 // @require     http://cdn.staticfile.org/jszip/2.3.0/jszip.min.js
 // @require     https://greasyfork.org/scripts/2963-gif-js/code/gifjs.js?version=8462
-// @version     1.0.0-alpha-2
+// @version     1.0.0-alpha-3
 // @grant       GM_registerMenuCommand
 // @grant       GM_openInTab
 // @description A small script to download the new png animated image in pixiv
@@ -65,10 +65,11 @@
       };
     }();
   require.define('/pixiv_helper.coffee', function (module, exports, __dirname, __filename) {
-    var Deferer, Downloader, EventEmitter, Extracter, Gifcreater, GifFrames, ImageCreater, lib, main, Menu, Modal, Util;
+    var Button, Deferer, Downloader, EventEmitter, Extracter, Gifcreater, GifFrames, ImageCreater, lib, main, Menu, Modal, Util;
     EventEmitter = require('events', module).EventEmitter;
-    Modal = require('/modal.js', module);
-    Menu = require('/menu.coffee', module);
+    Modal = require('/view/modal.js', module);
+    Menu = require('/view/menu.coffee', module);
+    Button = require('/view/downloadButton.coffee', module);
     Util = require('/util.js', module);
     lib = {
       $: jQuery,
@@ -481,10 +482,15 @@
         console.log(downloader.download(url));
         return true;
       };
-      if (global.pixiv.context.ugokuIllustData)
+      if (global.pixiv.context.ugokuIllustData) {
         GM_registerMenuCommand('\u4E0B\u8F09\u52D5\u5716', function () {
           return Menu.show();
         });
+        Button.hook($);
+        Button.on('click', function () {
+          return Menu.show();
+        });
+      }
       return Menu.on('run', function (data) {
         switch (data.size) {
         case 'mini':
@@ -688,61 +694,34 @@
       getUrl: getUrl
     };
   });
-  require.define('/menu.coffee', function (module, exports, __dirname, __filename) {
-    var EventEmitter, menu, menuCss, menuHTML;
+  require.define('/view/downloadButton.coffee', function (module, exports, __dirname, __filename) {
+    var botton, buttonCss, buttonHTML, EventEmitter;
     EventEmitter = require('events', module).EventEmitter;
-    menuHTML = '\r\n<div class="mmis_selection_box">\r\n    <form>\r\n        <fieldset>\r\n            <legend>\u5C3A\u5BF8</legend>\r\n            <input id="size_mini" type="radio" name ="size" value ="mini" checked>\r\n            <label for="size_mini">\u7E2E\u5716</label>\r\n            <input id="size_full" type="radio" name ="size" value ="full">\r\n            <label for="size_full">\u5168\u5716</label>\r\n        </fieldset>\r\n        <fieldset>\r\n            <legend>\u683C\u5F0F</legend>\r\n            <input id="type_frame" type="radio" name ="type" value ="frame" checked>\r\n            <label for="type_frame">\u55AE\u683C</label>\r\n            <input id="type_gif" type="radio" name ="type" value ="gif">\r\n            <label for="type_gif">gif</label>\r\n        </fieldset>\r\n        <fieldset>\r\n            <legend>\u52D5\u4F5C</legend>\r\n            <input id="action_download" type="radio" name ="action" value ="download" checked>\r\n            <label for="action_download">\u4E0B\u8F09</label>\r\n            <input id="action_view" type="radio" name ="action" value ="view">\r\n            <label for="action_view">\u700F\u89BD</label>\r\n        </fieldset>\r\n    </form>\r\n    <div class="botton_wrap">\r\n        <button data-action="run">\r\n            \u57F7\u884C\r\n        </button>\r\n        <button data-action="cancel">\r\n            \u53D6\u6D88\r\n        </button>\r\n    </div>\r\n</div>';
-    menuCss = '\r\n.mmis_selection_box {\r\n  display :none;\r\n  z-index: 99999;\r\n  width: 200px;\r\n  height: 280px;\r\n  border: 5px solid #eeeeee;\r\n  border-radius: 10px;\r\n  background: white;\r\n  position: fixed;\r\n  text-align: center;\r\n  left: 50%;\r\n  top: 50%;\r\n  font-size: 18px;\r\n  margin: -145px 0px 0px -105px;\r\n  line-height: 25px;\r\n}\r\n.mmis_selection_box fieldset,\r\n.mmis_selection_box input,\r\n.mmis_selection_box buttom,\r\n.mmis_selection_box div {\r\n  margin: 0px;\r\n  border: 0px;\r\n  padding: 0px;\r\n}\r\n.mmis_selection_box fieldset {\r\n  margin: 0.5em;\r\n  padding: 0.5em;\r\n  border: 1px solid #dddddd;\r\n  border-radius: 10px;\r\n}\r\n.mmis_selection_box fieldset label {\r\n  display: inline-block;\r\n  width: 3em;\r\n  cursor: pointer;\r\n}\r\n.mmis_selection_box .botton_wrap {\r\n  margin: 0.5em;\r\n}\r\n.mmis_selection_box .botton_wrap button {\r\n  display: block;\r\n  width: 50%;\r\n  text-align: center;\r\n  float: left;\r\n}';
-    menu = function (super$) {
-      extends$(menu, super$);
-      function menu() {
+    buttonHTML = '\r\n<button class="mmis-botton" title="\u4E0B\u8F09"></button>';
+    buttonCss = '\r\n.wrapper .mmis-botton {\r\n  position: absolute;\r\n  right: 42px;\r\n  top: 5px;\r\n  background: rgba(153, 153, 153, 0.5);\r\n  color: #f9f9f9;\r\n  box-sizing: content-box;\r\n  border: 0px;\r\n  padding: 6px 6px 6px 6px;\r\n  margin: 0px;\r\n  width: 20px;\r\n  height: 20px;\r\n  border-radius: 5px;\r\n  line-height: 20px;\r\n  font-size: 20px;\r\n  font-weight: bold;\r\n  text-align: center;\r\n  -webkit-transition: background-color, opacity 0.2s;\r\n  -moz-transition: background-color, opacity 0.2s;\r\n  -o-transition: background-color, opacity 0.2s;\r\n  -ms-transition: background-color, opacity 0.2s;\r\n  transition: background-color, opacity 0.2s;\r\n  opacity: 0;\r\n  display: block;\r\n}\r\n.wrapper .mmis-botton:hover {\r\n  background-color: rgba(153,153,153,0.75);\r\n}\r\n\r\n.wrapper .mmis-botton::after {\r\n  content: "\u2193";\r\n  display: inline;\r\n}\r\n._ugoku-illust-player-container:hover .mmis-botton {\r\n  opacity: 1;\r\n}';
+    botton = function (super$) {
+      extends$(botton, super$);
+      function botton() {
         this.$ = null;
         this.inited = false;
       }
-      menu.prototype.hook = function (jQuery) {
+      botton.prototype.hook = function (jQuery) {
         if (this.inited)
           return false;
         this.$ = jQuery;
         this.inited = true;
-        this.$('head').append($('<style>').text(menuCss));
-        this.menu = $(menuHTML);
-        this.$('body').append(this.menu);
-        this.menu.on('click', 'button[data-action="cancel"]', function (this$) {
-          return function (e) {
-            this$.hide();
-            return true;
+        this.$('head').append(this.$('<style>').html(buttonCss));
+        this.button = $(buttonHTML);
+        this.$('.works_display>._ugoku-illust-player-container>.wrapper').append(this.button);
+        return this.button.on('click', function (this$) {
+          return function () {
+            return this$.emit('click');
           };
         }(this));
-        this.menu.on('click', 'button[data-action="run"]', function (this$) {
-          return function (e) {
-            var data;
-            this$.hide();
-            data = {
-              size: this$.menu.find('input[name="size"]:checked').val(),
-              type: this$.menu.find('input[name="type"]:checked').val(),
-              action: this$.menu.find('input[name="action"]:checked').val()
-            };
-            this$.emit('run', data);
-            return true;
-          };
-        }(this));
-        return true;
       };
-      menu.prototype.show = function () {
-        if (!this.inited)
-          return false;
-        this.menu.fadeIn();
-        return true;
-      };
-      menu.prototype.hide = function () {
-        if (!this.inited)
-          return false;
-        this.menu.fadeOut();
-        return true;
-      };
-      return menu;
+      return botton;
     }(EventEmitter);
-    module.exports = new menu;
+    module.exports = new botton;
     function isOwn$(o, p) {
       return {}.hasOwnProperty.call(o, p);
     }
@@ -898,7 +877,84 @@
       return this._events[type];
     };
   });
-  require.define('/modal.js', function (module, exports, __dirname, __filename) {
+  require.define('/view/menu.coffee', function (module, exports, __dirname, __filename) {
+    var EventEmitter, menu, menuCss, menuHTML;
+    EventEmitter = require('events', module).EventEmitter;
+    menuHTML = '\r\n<div class="mmis_selection_box">\r\n    <form>\r\n        <fieldset>\r\n            <legend>\u5C3A\u5BF8</legend>\r\n            <input id="size_mini" type="radio" name ="size" value ="mini" checked>\r\n            <label for="size_mini">\u7E2E\u5716</label>\r\n            <input id="size_full" type="radio" name ="size" value ="full">\r\n            <label for="size_full">\u5168\u5716</label>\r\n        </fieldset>\r\n        <fieldset>\r\n            <legend>\u683C\u5F0F</legend>\r\n            <input id="type_frame" type="radio" name ="type" value ="frame" checked>\r\n            <label for="type_frame">\u55AE\u683C</label>\r\n            <input id="type_gif" type="radio" name ="type" value ="gif">\r\n            <label for="type_gif">gif</label>\r\n        </fieldset>\r\n        <fieldset>\r\n            <legend>\u52D5\u4F5C</legend>\r\n            <input id="action_download" type="radio" name ="action" value ="download" checked>\r\n            <label for="action_download">\u4E0B\u8F09</label>\r\n            <input id="action_view" type="radio" name ="action" value ="view">\r\n            <label for="action_view">\u700F\u89BD</label>\r\n        </fieldset>\r\n    </form>\r\n    <div class="botton_wrap">\r\n        <button data-action="run">\r\n            \u57F7\u884C\r\n        </button>\r\n        <button data-action="cancel">\r\n            \u53D6\u6D88\r\n        </button>\r\n    </div>\r\n</div>';
+    menuCss = '\r\n.mmis_selection_box {\r\n  display :none;\r\n  z-index: 99999;\r\n  width: 200px;\r\n  height: 280px;\r\n  border: 5px solid #eeeeee;\r\n  border-radius: 10px;\r\n  background: white;\r\n  position: fixed;\r\n  text-align: center;\r\n  left: 50%;\r\n  top: 50%;\r\n  font-size: 18px;\r\n  margin: -145px 0px 0px -105px;\r\n  line-height: 25px;\r\n}\r\n.mmis_selection_box fieldset,\r\n.mmis_selection_box input,\r\n.mmis_selection_box buttom,\r\n.mmis_selection_box div {\r\n  margin: 0px;\r\n  border: 0px;\r\n  padding: 0px;\r\n}\r\n.mmis_selection_box fieldset {\r\n  margin: 0.5em;\r\n  padding: 0.5em;\r\n  border: 1px solid #dddddd;\r\n  border-radius: 10px;\r\n}\r\n.mmis_selection_box fieldset label {\r\n  display: inline-block;\r\n  width: 3em;\r\n  cursor: pointer;\r\n}\r\n.mmis_selection_box .botton_wrap {\r\n  margin: 0.5em;\r\n}\r\n.mmis_selection_box .botton_wrap button {\r\n  display: block;\r\n  width: 50%;\r\n  text-align: center;\r\n  float: left;\r\n}';
+    menu = function (super$) {
+      extends$(menu, super$);
+      function menu() {
+        this.$ = null;
+        this.inited = false;
+      }
+      menu.prototype.hook = function (jQuery) {
+        if (this.inited)
+          return false;
+        this.$ = jQuery;
+        this.inited = true;
+        this.$('head').append($('<style>').text(menuCss));
+        this.menu = $(menuHTML);
+        this.$('body').append(this.menu);
+        this.menu.on('click', 'button[data-action="cancel"]', function (this$) {
+          return function (e) {
+            this$.hide();
+            return true;
+          };
+        }(this));
+        this.menu.on('click', 'button[data-action="run"]', function (this$) {
+          return function (e) {
+            var data;
+            this$.hide();
+            data = {
+              size: this$.menu.find('input[name="size"]:checked').val(),
+              type: this$.menu.find('input[name="type"]:checked').val(),
+              action: this$.menu.find('input[name="action"]:checked').val()
+            };
+            this$.emit('run', data);
+            return true;
+          };
+        }(this));
+        return true;
+      };
+      menu.prototype.show = function () {
+        if (!this.inited)
+          return false;
+        this.menu.fadeIn();
+        return true;
+      };
+      menu.prototype.hide = function () {
+        if (!this.inited)
+          return false;
+        this.menu.fadeOut();
+        return true;
+      };
+      return menu;
+    }(EventEmitter);
+    module.exports = new menu;
+    function isOwn$(o, p) {
+      return {}.hasOwnProperty.call(o, p);
+    }
+    function extends$(child, parent) {
+      for (var key in parent)
+        if (isOwn$(parent, key))
+          child[key] = parent[key];
+      function ctor() {
+        this.constructor = child;
+      }
+      ctor.prototype = parent.prototype;
+      child.prototype = new ctor;
+      child.__super__ = parent.prototype;
+      return child;
+    }
+    function in$(member, list) {
+      for (var i = 0, length = list.length; i < length; ++i)
+        if (i in list && list[i] === member)
+          return true;
+      return false;
+    }
+  });
+  require.define('/view/modal.js', function (module, exports, __dirname, __filename) {
     var loadPlugin = function ($) {
       var defaultOption = { stat: 'on' };
       function off(el) {
